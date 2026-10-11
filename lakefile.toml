@@ -1,0 +1,22 @@
+name = "aimath"
+defaultTargets = ["Results", "Problems"]
+
+[leanOptions]
+pp.unicode.fun = true
+autoImplicit = false
+
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4.git"
+# Pinned. Changes only through a pull request that keeps everything building.
+rev = "62bf13aabd0db1bf4cbe2a6ec087c6f7a677f448"
+
+# Accepted mathematics: gap-free, standard axioms only.
+[[lean_lib]]
+name = "Results"
+globs = ["Results.+"]
+
+# Open problems: the only place `sorry` is allowed.
+[[lean_lib]]
+name = "Problems"
+globs = ["Problems.+"]

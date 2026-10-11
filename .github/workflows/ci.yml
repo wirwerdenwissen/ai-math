@@ -1,0 +1,62 @@
+name: Referee
+
+# Builds pull requests, which means running contributor code: Lean elaboration
+# can execute arbitrary programs. So this job gets a read-only token, no
+# secrets, and no credentials left on disk. Merging is a separate workflow.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # A GITHUB_TOKEN merge does not trigger `push`, so main is also built daily.
+  # That catches two pull requests that were green apart and broken together.
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: referee-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  referee:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Merged mathematics is immutable
+        if: github.event_name == 'pull_request'
+        run: |
+          changed=$(git diff --name-only --diff-filter=MDR \
+            "${{ github.event.pull_request.base.sha }}" HEAD \
+            -- 'Results/**.lean' 'Problems/**.lean')
+          if [ -n "$changed" ]; then
+            echo "These files are already merged; a correction is a new module:"
+            echo "$changed"
+            exit 1
+          fi
+
+      - name: Install Lean
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Merge gate tests
+        working-directory: scripts
+        run: python3 merge_policy_test.py
+
+      - name: Mathlib cache
+        run: lake exe cache get
+
+      - name: Kernel check
+        run: lake build
+
+      - name: Axiom check
+        run: lake env lean --run scripts/CheckAxioms.lean

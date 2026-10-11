@@ -1,0 +1,37 @@
+name: Merge
+
+# Reads the Referee's verdict and merges. Runs from the default branch and
+# never checks out, builds or executes anything from the pull request.
+#
+# Deliberately not `pull_request_target`: that trigger runs with a write token
+# in the pull request's own context, one careless checkout away from giving a
+# stranger push access to main.
+
+on:
+  workflow_run:
+    workflows: ["Referee"]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # No `ref:` — this is the default branch, never the pull request.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: python3 scripts/merge_policy.py
