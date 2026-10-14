@@ -3,7 +3,7 @@
 is the code that decides who may write to the repository."""
 import unittest
 
-from merge_policy import MAX_FILES, blocked, path_verdict
+from merge_policy import MAX_FILES, at_commit, blocked, path_verdict
 
 
 class PathVerdict(unittest.TestCase):
@@ -74,6 +74,25 @@ class Blocked(unittest.TestCase):
     def test_unknown_mergeable_state_still_merges(self):
         # GitHub computes `mergeable` asynchronously; None must not block.
         self.assertIsNone(verdict(mergeable=None))
+
+
+class AtCommit(unittest.TestCase):
+    FORK = {"number": 1, "head": {"sha": "abc", "repo": {"fork": True}}}
+    OTHER = {"number": 2, "head": {"sha": "zzz"}}
+
+    def test_finds_a_fork_pull_request_by_head_sha(self):
+        # The reason this exists: /commits/{sha}/pulls returns [] for a commit
+        # that lives in a fork, which silently skipped the first real PR.
+        self.assertEqual(at_commit([self.FORK, self.OTHER], "abc"), [self.FORK])
+
+    def test_ignores_other_commits(self):
+        self.assertEqual(at_commit([self.OTHER], "abc"), [])
+
+    def test_empty_list(self):
+        self.assertEqual(at_commit([], "abc"), [])
+
+    def test_tolerates_missing_head(self):
+        self.assertEqual(at_commit([{"number": 3}], "abc"), [])
 
 
 if __name__ == "__main__":
